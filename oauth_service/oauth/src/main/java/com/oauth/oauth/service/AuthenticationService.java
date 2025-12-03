@@ -153,4 +153,23 @@ public class AuthenticationService {
 
         throw new RuntimeException("Invalid refresh token");
     }
+
+    public AuthResponse validateToken(String token) {
+        String userEmail = jwtUtil.extractUsername(token);
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (jwtUtil.validateToken(token, user)) {
+            return AuthResponse.builder()
+                    .token(token)
+                    .email(user.getEmail())
+                    .firstName(user.getFirstName())
+                    .lastName(user.getLastName())
+                    .role(user.getRole())
+                    .userId(user.getId())
+                    .build();
+        }
+
+        throw new RuntimeException("Invalid token");
+    }
 }

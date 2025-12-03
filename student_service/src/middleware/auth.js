@@ -1,10 +1,10 @@
-const jwt = require('jsonwebtoken');
+const axios = require('axios');
 
 /**
  * Middleware to verify JWT token
- * Extracts token from Authorization header and verifies it
+ * Extracts token from Authorization header and verifies it via OAuth service
  */
-const authenticateToken = (req, res, next) => {
+const authenticateToken = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
@@ -16,19 +16,32 @@ const authenticateToken = (req, res, next) => {
     }
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        req.user = decoded;
+        // Call OAuth service to validate token
+        const response = await axios.get(`http://localhost:8081/api/auth/validate?token=${token}`);
+
+        // If successful, the response data contains the user info
+        req.user = response.data;
         next();
     } catch (error) {
-        if (error.name === 'TokenExpiredError') {
-            return res.status(401).json({
+        // OAuth service returns 400 if token is invalid
+        if (error.response && error.response.status === 400) {
+            return res.status(403).json({
                 success: false,
-                message: 'Token has expired'
+                message: 'Invalid token'
             });
         }
-        return res.status(403).json({
+
+        console.error('Token validation error:', error.message);
+        if (error.response) {
+            console.error('Response status:', error.response.status);
+            console.error('Response data:', error.response.data);
+        } else if (error.request) {
+            console.error('No response received from OAuth service');
+        }
+
+        return res.status(500).json({
             success: false,
-            message: 'Invalid token'
+            message: 'Internal server error during authentication'
         });
     }
 };

@@ -48,4 +48,14 @@ public class AuthenticationController {
             return ResponseEntity.badRequest().build();
         }
     }
+
+    @GetMapping("/validate")
+    public ResponseEntity<AuthResponse> validateToken(@RequestParam String token) {
+        try {
+            AuthResponse response = authenticationService.validateToken(token);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
 }

@@ -1,4 +1,10 @@
-require('dotenv').config();
+const dotenv = require('dotenv');
+const result = dotenv.config();
+if (result.error) {
+    console.log('Error loading .env file:', result.error);
+}
+console.log('MONGO_URI:', process.env.MONGO_URI);
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
