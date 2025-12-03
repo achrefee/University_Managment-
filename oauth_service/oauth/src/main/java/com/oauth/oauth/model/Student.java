@@ -14,7 +14,6 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-@Document(collection = "students")
 public class Student extends User {
 
     private List<Course> courses = new ArrayList<>();

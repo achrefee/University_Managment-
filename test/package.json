@@ -1,0 +1,26 @@
+{
+    "name": "university-system-tests",
+    "version": "1.0.0",
+    "description": "Integration tests for University Management System",
+    "main": "test-all.js",
+    "scripts": {
+        "test": "node test-all.js",
+        "test:oauth": "node tests/oauth.test.js",
+        "test:student": "node tests/student.test.js",
+        "test:course": "node tests/course.test.js",
+        "test:grades": "node tests/grades.test.js",
+        "test:facturation": "node tests/facturation.test.js"
+    },
+    "keywords": [
+        "testing",
+        "microservices",
+        "university"
+    ],
+    "author": "",
+    "license": "MIT",
+    "dependencies": {
+        "axios": "^1.6.5",
+        "soap": "^1.0.0",
+        "colors": "^1.4.0"
+    }
+}

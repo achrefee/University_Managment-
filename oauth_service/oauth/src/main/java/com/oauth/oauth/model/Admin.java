@@ -10,7 +10,6 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-@Document(collection = "admins")
 public class Admin extends User {
 
     private String adminId;

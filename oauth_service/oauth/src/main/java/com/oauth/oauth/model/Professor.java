@@ -13,7 +13,6 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-@Document(collection = "professors")
 public class Professor extends User {
 
     private List<Course> courses = new ArrayList<>();
