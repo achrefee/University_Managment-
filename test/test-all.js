@@ -157,15 +157,18 @@ async function testStudentService() {
     try {
         // Test 1: Create Student (Admin only)
         log.info('Test 1: Create Student');
+        const timestamp = Date.now();
         const studentData = {
-            studentId: 'STU' + Date.now(),
-            email: 'newstudent@test.com',
+            studentId: 'STU' + timestamp,
+            email: `newstudent${timestamp}@test.com`,
             firstName: 'Alice',
             lastName: 'Johnson',
+            phoneNumber: '+1234567893',
+            password: 'Student123!',
             dateOfBirth: '2000-01-15',
             major: 'Computer Science',
             year: 2024,
-            inscriptionFeeStatus: 'PENDING',
+            inscriptionFeeStatus: 'NOT_PAID',
             enabled: true
         };
 
@@ -174,7 +177,7 @@ async function testStudentService() {
             studentData,
             { headers: { Authorization: `Bearer ${adminToken}` } }
         );
-        testStudentId = createResponse.data._id;
+        testStudentId = createResponse.data.data._id;
         log.success(`Student created with ID: ${testStudentId}`);
 
         // Test 2: Get All Students
@@ -183,7 +186,7 @@ async function testStudentService() {
             `${STUDENT_URL}/api/students`,
             { headers: { Authorization: `Bearer ${adminToken}` } }
         );
-        log.success(`Retrieved ${studentsResponse.data.students.length} students`);
+        log.success(`Retrieved ${studentsResponse.data.data.length} students`);
 
         // Test 3: Get Student by ID
         log.info('Test 3: Get Student by ID');
@@ -191,7 +194,7 @@ async function testStudentService() {
             `${STUDENT_URL}/api/students/${testStudentId}`,
             { headers: { Authorization: `Bearer ${adminToken}` } }
         );
-        log.success(`Retrieved student: ${studentResponse.data.firstName} ${studentResponse.data.lastName}`);
+        log.success(`Retrieved student: ${studentResponse.data.data.firstName} ${studentResponse.data.data.lastName}`);
 
         // Test 4: Update Student
         log.info('Test 4: Update Student');
@@ -206,7 +209,7 @@ async function testStudentService() {
         log.info('Test 5: Update Inscription Fee Status');
         await axios.patch(
             `${STUDENT_URL}/api/students/${testStudentId}/inscription-fee`,
-            { inscriptionFeeStatus: 'PAID' },
+            { status: 'PAID' },
             { headers: { Authorization: `Bearer ${adminToken}` } }
         );
         log.success('Inscription fee status updated to PAID');
@@ -266,7 +269,7 @@ async function testCourseService() {
         log.info('Test 3: Get Course by ID');
         const courseResult = await client.getCourseByIdAsync({
             token: studentToken,
-            courseId: testCourseId
+            id: testCourseId
         });
         log.success(`Retrieved course: ${courseResult[0]?.return?.courseName}`);
 

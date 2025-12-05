@@ -6,7 +6,6 @@ import com.university.cours.model.Course;
 import com.university.cours.model.TimeSlot;
 import com.university.cours.repository.CourseRepository;
 import com.university.cours.security.JWTValidator;
-import io.jsonwebtoken.Claims;
 import jakarta.jws.WebService;
 
 import java.util.ArrayList;
@@ -115,8 +114,8 @@ public class CourseServiceImpl implements ICourseService {
         }
 
         try {
-            Claims claims = JWTValidator.validateToken(token);
-            String role = JWTValidator.extractRole(claims);
+            JWTValidator.UserInfo userInfo = JWTValidator.validateToken(token);
+            String role = JWTValidator.extractRole(userInfo);
 
             if (!JWTValidator.isAuthenticated(role)) {
                 throw new SecurityException("Invalid user role");
@@ -132,8 +131,8 @@ public class CourseServiceImpl implements ICourseService {
         }
 
         try {
-            Claims claims = JWTValidator.validateToken(token);
-            String role = JWTValidator.extractRole(claims);
+            JWTValidator.UserInfo userInfo = JWTValidator.validateToken(token);
+            String role = JWTValidator.extractRole(userInfo);
 
             if (!JWTValidator.isAdmin(role)) {
                 throw new SecurityException("Access denied. Admin privileges required.");

@@ -1,57 +1,74 @@
-import jwt
+import httpx
 from fastapi import HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from app.config import settings
 
 security = HTTPBearer()
 
-def decode_token(token: str) -> dict:
-    """Decode and validate JWT token"""
+# OAuth service URL
+OAUTH_SERVICE_URL = "http://localhost:8081"
+
+async def validate_token_with_oauth(token: str) -> dict:
+    """Validate token by calling the OAuth service"""
     try:
-        payload = jwt.decode(
-            token,
-            settings.jwt_secret,
-            algorithms=[settings.jwt_algorithm]
-        )
-        return payload
-    except jwt.ExpiredSignatureError:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{OAUTH_SERVICE_URL}/api/auth/validate",
+                params={"token": token},
+                timeout=10.0
+            )
+            
+            if response.status_code == 200:
+                return response.json()
+            elif response.status_code == 400:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Invalid or expired token"
+                )
+            else:
+                raise HTTPException(
+                    status_code=500,
+                    detail="OAuth service error"
+                )
+    except httpx.RequestError as e:
         raise HTTPException(
-            status_code=401,
-            detail="Token has expired"
-        )
-    except jwt.InvalidTokenError as e:
-        raise HTTPException(
-            status_code=401,
-            detail=f"Invalid authentication credentials: {str(e)}"
+            status_code=503,
+            detail=f"OAuth service unavailable: {str(e)}"
         )
 
-def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)) -> dict:
-    """Extract and validate current user from JWT token"""
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)) -> dict:
+    """Extract and validate current user via OAuth service"""
     token = credentials.credentials
-    payload = decode_token(token)
-    
-    if not payload.get("sub"):
-        raise HTTPException(status_code=401, detail="Invalid token payload")
+    user_data = await validate_token_with_oauth(token)
     
     return {
-        "email": payload.get("sub"),
-        "role": payload.get("role"),
-        "user_id": payload.get("user_id")
+        "email": user_data.get("email"),
+        "role": user_data.get("role"),
+        "user_id": user_data.get("userId"),
+        "firstName": user_data.get("firstName"),
+        "lastName": user_data.get("lastName")
     }
 
-def require_professor(current_user: dict = Security(get_current_user)) -> dict:
+async def require_professor(credentials: HTTPAuthorizationCredentials = Security(security)) -> dict:
     """Require PROFESSOR role"""
-    if current_user.get("role") != "ROLE_PROFESSOR":
+    current_user = await get_current_user(credentials)
+    role = current_user.get("role")
+    
+    # Accept both ROLE_PROFESSOR and PROFESSOR formats
+    if role not in ["ROLE_PROFESSOR", "PROFESSOR"]:
         raise HTTPException(
             status_code=403,
             detail="Access denied. Professor privileges required."
         )
     return current_user
 
-def require_student_or_admin(current_user: dict = Security(get_current_user)) -> dict:
+async def require_student_or_admin(credentials: HTTPAuthorizationCredentials = Security(security)) -> dict:
     """Require STUDENT or ADMIN role for viewing"""
+    current_user = await get_current_user(credentials)
     role = current_user.get("role")
-    if role not in ["ROLE_STUDENT", "ROLE_ADMIN", "ROLE_PROFESSOR"]:
+    
+    # Accept both ROLE_ prefixed and non-prefixed formats
+    allowed_roles = ["ROLE_STUDENT", "ROLE_ADMIN", "ROLE_PROFESSOR", "STUDENT", "ADMIN", "PROFESSOR"]
+    if role not in allowed_roles:
         raise HTTPException(
             status_code=403,
             detail="Access denied. Student, Admin, or Professor privileges required."

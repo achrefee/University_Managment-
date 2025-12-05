@@ -12,9 +12,10 @@ const requireAdmin = (req, res, next) => {
 
     // Check if user has ADMIN role
     // The role is stored in the JWT token from the OAuth service
+    // OAuth service may return 'ADMIN' or 'ROLE_ADMIN' depending on context
     const userRole = req.user.role;
 
-    if (userRole !== 'ROLE_ADMIN') {
+    if (userRole !== 'ROLE_ADMIN' && userRole !== 'ADMIN') {
         return res.status(403).json({
             success: false,
             message: 'Access denied. Admin privileges required.'

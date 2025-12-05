@@ -1,48 +1,70 @@
-using System.IdentityModel.Tokens.Jwt;
+using System.Net.Http;
+using System.Text.Json;
 using System.Security.Claims;
-using System.Text;
-using Microsoft.IdentityModel.Tokens;
 
 namespace FacturationService.Security;
 
 public class JwtValidator
 {
     private readonly IConfiguration _configuration;
+    private readonly HttpClient _httpClient;
+    private static readonly string OAUTH_SERVICE_URL = "http://localhost:8081";
 
     public JwtValidator(IConfiguration configuration)
     {
         _configuration = configuration;
+        _httpClient = new HttpClient();
     }
 
-    public (bool isValid, ClaimsPrincipal? principal) ValidateToken(string token)
+    public async Task<(bool isValid, ClaimsPrincipal? principal, OAuthUserInfo? userInfo)> ValidateTokenAsync(string token)
     {
         try
         {
-            var secret = _configuration["Jwt:Secret"];
-            if (string.IsNullOrEmpty(secret))
+            // URL encode the token to handle special characters
+            var encodedToken = Uri.EscapeDataString(token);
+            var response = await _httpClient.GetAsync($"{OAUTH_SERVICE_URL}/api/auth/validate?token={encodedToken}");
+            
+            if (response.IsSuccessStatusCode)
             {
-                throw new InvalidOperationException("JWT Secret is not configured");
+                var content = await response.Content.ReadAsStringAsync();
+                var userInfo = JsonSerializer.Deserialize<OAuthUserInfo>(content, new JsonSerializerOptions 
+                { 
+                    PropertyNameCaseInsensitive = true 
+                });
+                
+                if (userInfo != null)
+                {
+                    var claims = new List<Claim>
+                    {
+                        new Claim(ClaimTypes.Email, userInfo.Email ?? ""),
+                        new Claim(ClaimTypes.Name, $"{userInfo.FirstName} {userInfo.LastName}"),
+                        new Claim("role", userInfo.Role ?? ""),
+                        new Claim("userId", userInfo.UserId ?? "")
+                    };
+                    
+                    var identity = new ClaimsIdentity(claims, "OAuth");
+                    var principal = new ClaimsPrincipal(identity);
+                    
+                    return (true, principal, userInfo);
+                }
             }
-
-            var key = Encoding.ASCII.GetBytes(secret);
-            var tokenHandler = new JwtSecurityTokenHandler();
-
-            var validationParameters = new TokenValidationParameters
-            {
-                ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(key),
-                ValidateIssuer = false,
-                ValidateAudience = false,
-                ClockSkew = TimeSpan.Zero
-            };
-
-            var principal = tokenHandler.ValidateToken(token, validationParameters, out var validatedToken);
-            return (true, principal);
+            
+            // Log error for debugging
+            Console.WriteLine($"OAuth validation failed. Status: {response.StatusCode}");
+            return (false, null, null);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            return (false, null);
+            Console.WriteLine($"OAuth validation error: {ex.Message}");
+            return (false, null, null);
         }
+    }
+
+    // Synchronous wrapper for compatibility
+    public (bool isValid, ClaimsPrincipal? principal) ValidateToken(string token)
+    {
+        var result = ValidateTokenAsync(token).GetAwaiter().GetResult();
+        return (result.isValid, result.principal);
     }
 
     public string? GetClaimValue(ClaimsPrincipal principal, string claimType)
@@ -53,11 +75,23 @@ public class JwtValidator
     public bool HasRole(ClaimsPrincipal principal, string role)
     {
         var userRole = principal.FindFirst("role")?.Value;
-        return userRole == role;
+        // Accept both ROLE_ prefixed and non-prefixed formats
+        return userRole == role || userRole == $"ROLE_{role}" || $"ROLE_{userRole}" == role;
     }
 
     public bool IsAdmin(ClaimsPrincipal principal)
     {
-        return HasRole(principal, "ROLE_ADMIN");
+        var role = principal.FindFirst("role")?.Value;
+        return role == "ROLE_ADMIN" || role == "ADMIN";
     }
+}
+
+public class OAuthUserInfo
+{
+    public string? Token { get; set; }
+    public string? Email { get; set; }
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
+    public string? Role { get; set; }
+    public string? UserId { get; set; }
 }
