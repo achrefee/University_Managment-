@@ -33,7 +33,7 @@ spring:
       routes:
         # OAuth Service - Authentication
         - id: oauth-service
-          uri: http://localhost:8081
+          uri: ${OAUTH_SERVICE_URL:http://localhost:8081}
           predicates:
             - Path=/api/auth/**
           filters:
@@ -41,7 +41,7 @@ spring:
 
         # Student Service - Student Management
         - id: student-service
-          uri: http://localhost:3001
+          uri: ${STUDENT_SERVICE_URL:http://localhost:3001}
           predicates:
             - Path=/api/students/**
           filters:
@@ -49,7 +49,7 @@ spring:
 
         # Course Service - SOAP Service (proxy)
         - id: course-service
-          uri: http://localhost:8082
+          uri: ${COURSE_SERVICE_URL:http://localhost:8082}
           predicates:
             - Path=/api/courses/**
           filters:
@@ -57,13 +57,13 @@ spring:
         
         # Course WSDL
         - id: course-wsdl
-          uri: http://localhost:8082
+          uri: ${COURSE_SERVICE_URL:http://localhost:8082}
           predicates:
             - Path=/courses/**
 
         # Grades Service - FastAPI
         - id: grades-service
-          uri: http://localhost:8000
+          uri: ${GRADES_SERVICE_URL:http://localhost:8000}
           predicates:
             - Path=/api/grades/**
           filters:
@@ -71,7 +71,7 @@ spring:
 
         # Facturation Service - SOAP Service (proxy)
         - id: facturation-service
-          uri: http://localhost:8083
+          uri: ${FACTURATION_SERVICE_URL:http://localhost:8083}
           predicates:
             - Path=/api/facturation/**
           filters:
@@ -79,7 +79,7 @@ spring:
         
         # Facturation WSDL
         - id: facturation-wsdl
-          uri: http://localhost:8083
+          uri: ${FACTURATION_SERVICE_URL:http://localhost:8083}
           predicates:
             - Path=/FacturationService.asmx/**
 
@@ -98,5 +98,5 @@ management:
 # Logging
 logging:
   level:
-    org.springframework.cloud.gateway: DEBUG
+    org.springframework.cloud.gateway: INFO
     reactor.netty: INFO

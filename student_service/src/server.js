@@ -1,9 +1,17 @@
 const dotenv = require('dotenv');
-const result = dotenv.config();
-if (result.error) {
-    console.log('Error loading .env file:', result.error);
+const fs = require('fs');
+
+// Only load .env file if it exists (for local development)
+// In Docker, environment variables are passed via docker-compose
+if (fs.existsSync('.env')) {
+    const result = dotenv.config();
+    if (result.error) {
+        console.log('Error loading .env file:', result.error);
+    }
 }
-console.log('MONGO_URI:', process.env.MONGO_URI);
+
+console.log('MONGO_URI:', process.env.MONGO_URI || process.env.MONGODB_URI);
+
 
 const express = require('express');
 const cors = require('cors');

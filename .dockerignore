@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+.npm
+package-lock.json
+
+# Build output
+dist/
+build/
+target/
+bin/
+obj/
+out/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.project
+.classpath
+.settings/
+
+# Logs
+*.log
+logs/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage/
+.nyc_output/
+htmlcov/
+.pytest_cache/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.Python
+venv/
+.venv/
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+docs/
+documentation/
+*.md
+!README.md
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore

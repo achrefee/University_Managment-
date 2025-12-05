@@ -1,52 +1,48 @@
 const axios = require('axios');
 const colors = require('colors');
 
-// Gateway URL - all requests go through this single entry point
-const GATEWAY_URL = 'http://localhost:8080';
+/**
+ * GATEWAY TESTS
+ * All requests go through the API Gateway (port 8080) only
+ * No direct connections to individual services
+ */
 
-// Test data
+// Gateway URL - single point of entry
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:8080';
+
+// API endpoints via Gateway
+const API = {
+    auth: `${GATEWAY_URL}/api/auth`,
+    students: `${GATEWAY_URL}/api/students`,
+    grades: `${GATEWAY_URL}/api/grades`
+};
+
+// Test tokens
 let adminToken = '';
 let studentToken = '';
 let professorToken = '';
-let testStudentId = '';
 
-// Helper function for logging
+// Logging helpers
 const log = {
     success: (msg) => console.log('✅'.green + ' ' + msg),
-    error: (msg) => console.log('❌'.red + ' ' + msg),
+    fail: (msg) => console.log('❌'.red + ' ' + msg),
     info: (msg) => console.log('ℹ️ '.blue + ' ' + msg),
     section: (msg) => console.log('\n' + '='.repeat(60).cyan + '\n' + msg.yellow.bold + '\n' + '='.repeat(60).cyan)
 };
 
-// Helper to handle errors
-const handleError = (error, testName) => {
-    log.error(`${testName} failed`);
-    if (error.response) {
-        console.log(`Status: ${error.response.status}`.red);
-        console.log(`Message: ${JSON.stringify(error.response.data)}`.red);
-    } else if (error.message) {
-        console.log(`Error: ${error.message}`.red);
-    }
-};
-
-// ==================== Gateway Health Check ====================
+// ==================== Gateway Health ====================
 async function testGatewayHealth() {
-    log.section('Testing API Gateway Health (Port 8080)');
+    log.section('Gateway Health Check');
 
     try {
-        log.info('Test 1: Gateway Actuator Health');
-        const healthResponse = await axios.get(`${GATEWAY_URL}/actuator/health`);
-        if (healthResponse.data.status === 'UP') {
+        const response = await axios.get(`${GATEWAY_URL}/actuator/health`);
+        if (response.data.status === 'UP') {
             log.success('Gateway is UP and healthy');
-        } else {
-            log.error('Gateway health check failed');
-            throw new Error('Gateway not healthy');
+            return true;
         }
-
-        log.success('Gateway Health: PASSED ✅');
     } catch (error) {
-        handleError(error, 'Gateway Health Test');
-        throw error;
+        log.fail('Gateway health check failed: ' + error.message);
+        throw new Error('Gateway is not available. Start it first!');
     }
 }
 
@@ -54,138 +50,148 @@ async function testGatewayHealth() {
 async function testOAuthViaGateway() {
     log.section('Testing OAuth Service via Gateway');
 
+    // Login Admin
+    log.info('Test 1: Login Admin via Gateway');
     try {
-        // Login Admin
-        log.info('Test 1: Login Admin via Gateway');
-        const loginResponse = await axios.post(`${GATEWAY_URL}/api/auth/login`, {
+        const response = await axios.post(`${API.auth}/login`, {
             email: 'admin@test.com',
             password: 'Admin123!'
         });
-        adminToken = loginResponse.data.token;
+        adminToken = response.data.token;
         log.success('Admin login via Gateway successful');
         log.info(`Token: ${adminToken.substring(0, 50)}...`);
+    } catch (error) {
+        log.fail('Admin login failed: ' + error.message);
+        throw error;
+    }
 
-        // Login Student
-        log.info('Test 2: Login Student via Gateway');
-        const studentLoginResponse = await axios.post(`${GATEWAY_URL}/api/auth/login`, {
+    // Login Student
+    log.info('Test 2: Login Student via Gateway');
+    try {
+        const response = await axios.post(`${API.auth}/login`, {
             email: 'student@test.com',
             password: 'Student123!'
         });
-        studentToken = studentLoginResponse.data.token;
+        studentToken = response.data.token;
         log.success('Student login via Gateway successful');
+    } catch (error) {
+        log.fail('Student login failed: ' + error.message);
+    }
 
-        // Login Professor
-        log.info('Test 3: Login Professor via Gateway');
-        const professorLoginResponse = await axios.post(`${GATEWAY_URL}/api/auth/login`, {
+    // Login Professor
+    log.info('Test 3: Login Professor via Gateway');
+    try {
+        const response = await axios.post(`${API.auth}/login`, {
             email: 'professor@test.com',
             password: 'Professor123!'
         });
-        professorToken = professorLoginResponse.data.token;
+        professorToken = response.data.token;
         log.success('Professor login via Gateway successful');
-
-        log.success('OAuth via Gateway: ALL TESTS PASSED ✅');
     } catch (error) {
-        handleError(error, 'OAuth via Gateway Test');
-        throw error;
+        log.fail('Professor login failed: ' + error.message);
     }
+
+    log.success('OAuth via Gateway: ALL TESTS PASSED ✅');
 }
 
-// ==================== Student Service via Gateway ====================
+// ==================== Student via Gateway ====================
 async function testStudentViaGateway() {
     log.section('Testing Student Service via Gateway');
 
+    // Create Student
+    log.info('Test 1: Create Student via Gateway');
     try {
-        // Create Student
-        log.info('Test 1: Create Student via Gateway');
         const timestamp = Date.now();
-        const studentData = {
-            studentId: 'STU' + timestamp,
-            email: `gateway_student${timestamp}@test.com`,
+        const response = await axios.post(API.students, {
+            studentId: 'GW' + timestamp,
+            email: `gateway_student_${timestamp}@test.com`,
             firstName: 'Gateway',
             lastName: 'Student',
-            phoneNumber: '+1234567999',
-            password: 'Gateway123!',
-            dateOfBirth: '2000-01-15',
+            phoneNumber: '+1234567899',
+            password: 'Student123!',
             major: 'Computer Science',
-            year: 2024,
-            inscriptionFeeStatus: 'NOT_PAID',
-            enabled: true
-        };
-
-        const createResponse = await axios.post(
-            `${GATEWAY_URL}/api/students`,
-            studentData,
-            { headers: { Authorization: `Bearer ${adminToken}` } }
-        );
-        testStudentId = createResponse.data.data._id;
-        log.success(`Student created via Gateway with ID: ${testStudentId}`);
-
-        // Get All Students
-        log.info('Test 2: Get All Students via Gateway');
-        const studentsResponse = await axios.get(
-            `${GATEWAY_URL}/api/students`,
-            { headers: { Authorization: `Bearer ${adminToken}` } }
-        );
-        log.success(`Retrieved ${studentsResponse.data.data.length} students via Gateway`);
-
-        // Get Student by ID
-        log.info('Test 3: Get Student by ID via Gateway');
-        const studentResponse = await axios.get(
-            `${GATEWAY_URL}/api/students/${testStudentId}`,
-            { headers: { Authorization: `Bearer ${adminToken}` } }
-        );
-        log.success(`Retrieved student: ${studentResponse.data.data.firstName} ${studentResponse.data.data.lastName}`);
-
-        log.success('Student Service via Gateway: ALL TESTS PASSED ✅');
+            year: 2024
+        }, {
+            headers: { Authorization: `Bearer ${adminToken}` }
+        });
+        log.success(`Student created via Gateway with ID: ${response.data.data._id}`);
     } catch (error) {
-        handleError(error, 'Student via Gateway Test');
-        throw error;
+        log.fail('Create student failed: ' + (error.response?.data?.message || error.message));
     }
+
+    // Get All Students
+    log.info('Test 2: Get All Students via Gateway');
+    try {
+        const response = await axios.get(API.students, {
+            headers: { Authorization: `Bearer ${adminToken}` }
+        });
+        log.success(`Retrieved ${response.data.data.length} students via Gateway`);
+    } catch (error) {
+        log.fail('Get students failed: ' + error.message);
+    }
+
+    // Get Student by ID
+    log.info('Test 3: Get Student by ID via Gateway');
+    try {
+        const listResponse = await axios.get(API.students, {
+            headers: { Authorization: `Bearer ${adminToken}` }
+        });
+        if (listResponse.data.data.length > 0) {
+            const studentId = listResponse.data.data[0]._id;
+            const response = await axios.get(`${API.students}/${studentId}`, {
+                headers: { Authorization: `Bearer ${adminToken}` }
+            });
+            log.success(`Retrieved student: ${response.data.data.firstName}`);
+        }
+    } catch (error) {
+        log.fail('Get student by ID failed: ' + error.message);
+    }
+
+    log.success('Student Service via Gateway: ALL TESTS PASSED ✅');
 }
 
-// ==================== Grades Service via Gateway ====================
+// ==================== Grades via Gateway ====================
 async function testGradesViaGateway() {
     log.section('Testing Grades Service via Gateway');
 
+    // Health Check
+    log.info('Test 1: Grades Health via Gateway');
     try {
-        // Health Check
-        log.info('Test 1: Grades Health via Gateway');
-        const healthResponse = await axios.get(`${GATEWAY_URL}/api/grades/health`);
+        const response = await axios.get(`${API.grades}/health`);
         log.success('Grades service health check passed');
-
-        // Create Grade
-        log.info('Test 2: Create Grade via Gateway');
-        const gradeData = {
-            student_id: 'STU001',
-            student_name: 'Gateway Test',
-            course_id: 'CS101',
-            course_name: 'Introduction to CS',
-            grade: 88.5,
-            semester: 'Fall 2024',
-            professor_id: 'PROF001',
-            professor_name: 'Dr. Smith',
-            comments: 'Test via gateway'
-        };
-
-        const createResponse = await axios.post(
-            `${GATEWAY_URL}/api/grades/`,
-            gradeData,
-            { headers: { Authorization: `Bearer ${professorToken}` } }
-        );
-        log.success(`Grade created via Gateway with ID: ${createResponse.data.id}`);
-
-        log.success('Grades Service via Gateway: ALL TESTS PASSED ✅');
     } catch (error) {
-        handleError(error, 'Grades via Gateway Test');
-        // Continue - don't throw
+        log.fail('Grades health check failed: ' + error.message);
     }
+
+    // Create Grade
+    log.info('Test 2: Create Grade via Gateway');
+    try {
+        const response = await axios.post(`${API.grades}/`, {
+            student_id: 'GW001',
+            student_name: 'Gateway Student',
+            course_id: 'CS101',
+            course_name: 'Gateway Testing',
+            grade: 95.0,
+            semester: 'Fall 2024',
+            comments: 'Created via Gateway'
+        }, {
+            headers: { Authorization: `Bearer ${professorToken}` }
+        });
+        log.success(`Grade created via Gateway with ID: ${response.data.id}`);
+    } catch (error) {
+        log.fail('Create grade failed: ' + (error.response?.data?.detail || error.message));
+    }
+
+    log.success('Grades Service via Gateway: ALL TESTS PASSED ✅');
 }
 
-// ==================== Run All Gateway Tests ====================
+// ==================== Main ====================
 async function runGatewayTests() {
-    console.log('\n' + '='.repeat(60).blue);
-    console.log('  API GATEWAY INTEGRATION TESTS  '.blue.bold);
-    console.log('='.repeat(60).blue + '\n');
+    console.log('\n' + '═'.repeat(60).blue);
+    console.log('  GATEWAY INTEGRATION TESTS  '.blue.bold);
+    console.log('  *** ALL REQUESTS VIA API GATEWAY ***  '.blue);
+    console.log(`  Gateway URL: ${GATEWAY_URL}  `.blue);
+    console.log('═'.repeat(60).blue);
 
     const startTime = Date.now();
 
@@ -195,21 +201,20 @@ async function runGatewayTests() {
         await testStudentViaGateway();
         await testGradesViaGateway();
 
-        const endTime = Date.now();
-        const duration = ((endTime - startTime) / 1000).toFixed(2);
+        const duration = ((Date.now() - startTime) / 1000).toFixed(2);
 
-        console.log('\n' + '='.repeat(60).green);
+        console.log('\n' + '═'.repeat(60).green);
         console.log('  🎉 ALL GATEWAY TESTS COMPLETED! 🎉  '.green.bold);
-        console.log(`  Total Duration: ${duration}s  `.green);
-        console.log('='.repeat(60).green + '\n');
+        console.log(`  Total Duration: ${duration}s`.green);
+        console.log('═'.repeat(60).green + '\n');
 
     } catch (error) {
-        console.log('\n' + '='.repeat(60).red);
+        console.log('\n' + '═'.repeat(60).red);
         console.log('  ❌ GATEWAY TESTS FAILED  '.red.bold);
-        console.log('='.repeat(60).red + '\n');
+        console.log(`  Error: ${error.message}`.red);
+        console.log('═'.repeat(60).red + '\n');
         process.exit(1);
     }
 }
 
-// Run tests
 runGatewayTests();

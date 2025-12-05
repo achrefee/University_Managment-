@@ -1,0 +1,155 @@
+version: '3.8'
+
+services:
+  # ==================== Database ====================
+  mongodb:
+    image: mongo:7
+    container_name: university-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - university-network
+    healthcheck:
+      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==================== API Gateway ====================
+  api-gateway:
+    build:
+      context: ./api_gateway
+      dockerfile: Dockerfile
+    container_name: university-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/university_oauth
+      - OAUTH_SERVICE_URL=http://oauth-service:8081
+      - STUDENT_SERVICE_URL=http://student-service:3001
+      - GRADES_SERVICE_URL=http://grades-service:8000
+      - COURSE_SERVICE_URL=http://course-service:8082
+      - FACTURATION_SERVICE_URL=http://facturation-service:8083
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - university-network
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==================== OAuth Service ====================
+  oauth-service:
+    build:
+      context: ./oauth_service/oauth
+      dockerfile: Dockerfile
+    container_name: university-oauth
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/university_oauth
+      - SERVER_PORT=8081
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - university-network
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:8081/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==================== Student Service ====================
+  student-service:
+    build:
+      context: ./student_service
+      dockerfile: Dockerfile
+    container_name: university-student
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - MONGODB_URI=mongodb://mongodb:27017/university_oauth
+      - GATEWAY_URL=http://api-gateway:8080
+      - GATEWAY_SECRET=university-gateway-2024
+    depends_on:
+      - mongodb
+      - api-gateway
+    networks:
+      - university-network
+
+  # ==================== Grades Service ====================
+  grades-service:
+    build:
+      context: ./grades_service
+      dockerfile: Dockerfile
+    container_name: university-grades
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/university_oauth
+      - MONGODB_URL=mongodb://mongodb:27017
+      - MONGODB_DB_NAME=university_oauth
+      - GATEWAY_URL=http://api-gateway:8080
+      - JWT_SECRET=university-jwt-secret-key-2024
+      - ALLOWED_ORIGINS=*
+    depends_on:
+      - mongodb
+      - api-gateway
+    networks:
+      - university-network
+
+  # ==================== Course Service ====================
+  course-service:
+    build:
+      context: ./cours_emploi_service
+      dockerfile: Dockerfile
+    container_name: university-course
+    ports:
+      - "8082:8082"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DB_NAME=university_oauth
+      - GATEWAY_URL=http://api-gateway:8080
+      - SERVICE_HOST=0.0.0.0
+      - SERVICE_PORT=8082
+    depends_on:
+      - mongodb
+      - api-gateway
+    networks:
+      - university-network
+
+  # ==================== Facturation Service ====================
+  facturation-service:
+    build:
+      context: ./facturation_service
+      dockerfile: Dockerfile
+    container_name: university-facturation
+    ports:
+      - "8083:8083"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DB_NAME=university_oauth
+      - GATEWAY_URL=http://api-gateway:8080
+      - ASPNETCORE_URLS=http://+:8083
+    depends_on:
+      - mongodb
+      - api-gateway
+    networks:
+      - university-network
+
+# ==================== Networks ====================
+networks:
+  university-network:
+    driver: bridge
+
+# ==================== Volumes ====================
+volumes:
+  mongodb_data:
+    driver: local

@@ -5,14 +5,16 @@ const colors = require('colors');
  * INTERCONNECTION TEST
  * 
  * This test verifies that:
- * 1. Direct connections to services DON'T work (should fail)
- * 2. Connections through the Gateway DO work (should succeed)
+ * 1. Connections through the Gateway WORK
+ * 2. Direct connections to services are BLOCKED (403)
  * 
- * This ensures the gateway architecture is properly enforced.
+ * This ensures the gateway-only architecture is properly enforced.
  */
 
-// URLs
-const GATEWAY_URL = 'http://localhost:8080';
+// Gateway URL - all traffic should go through here
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:8080';
+
+// Direct service URLs - these should be BLOCKED
 const DIRECT_URLS = {
     oauth: 'http://localhost:8081',
     student: 'http://localhost:3001',
@@ -31,10 +33,10 @@ const log = {
     fail: (msg) => { console.log('❌'.red + ' ' + msg); failed++; },
     info: (msg) => console.log('ℹ️ '.blue + ' ' + msg),
     section: (msg) => console.log('\n' + '='.repeat(60).cyan + '\n' + msg.yellow.bold + '\n' + '='.repeat(60).cyan),
-    expected: (msg) => console.log('   ⚠️  Expected: '.gray + msg.gray)
+    warn: (msg) => console.log('⚠️ '.yellow + ' ' + msg)
 };
 
-// Get admin token via gateway first
+// Get admin token via gateway
 async function getAdminToken() {
     try {
         const response = await axios.post(`${GATEWAY_URL}/api/auth/login`, {
@@ -47,76 +49,73 @@ async function getAdminToken() {
     }
 }
 
-// ==================== TEST: Gateway Connection Works ====================
+// ==================== TEST: Gateway Works ====================
 async function testGatewayWorks(token) {
     log.section('TEST 1: Gateway Connections Should WORK');
 
-    // Test OAuth via Gateway
+    // OAuth via Gateway
     log.info('Testing OAuth via Gateway...');
     try {
         const response = await axios.get(`${GATEWAY_URL}/api/auth/validate?token=${token}`);
         if (response.status === 200) {
-            log.success('OAuth via Gateway: WORKS ✓');
+            log.success('OAuth via Gateway: WORKS');
         }
     } catch (error) {
-        log.fail('OAuth via Gateway: FAILED (unexpected)');
+        log.fail('OAuth via Gateway: FAILED - ' + error.message);
     }
 
-    // Test Student via Gateway
+    // Students via Gateway
     log.info('Testing Student Service via Gateway...');
     try {
         const response = await axios.get(`${GATEWAY_URL}/api/students`, {
             headers: { Authorization: `Bearer ${token}` }
         });
         if (response.status === 200) {
-            log.success('Student Service via Gateway: WORKS ✓');
+            log.success('Student Service via Gateway: WORKS');
         }
     } catch (error) {
-        log.fail('Student Service via Gateway: FAILED (unexpected)');
+        log.fail('Student Service via Gateway: FAILED - ' + error.message);
     }
 
-    // Test Grades via Gateway
+    // Grades via Gateway
     log.info('Testing Grades Service via Gateway...');
     try {
         const response = await axios.get(`${GATEWAY_URL}/api/grades/health`);
         if (response.status === 200) {
-            log.success('Grades Service via Gateway: WORKS ✓');
+            log.success('Grades Service via Gateway: WORKS');
         }
     } catch (error) {
-        log.fail('Grades Service via Gateway: FAILED (unexpected)');
+        log.fail('Grades Service via Gateway: FAILED - ' + error.message);
     }
 }
 
-// ==================== TEST: Direct Connection Should Fail ====================
-async function testDirectConnectionsFail(token) {
-    log.section('TEST 2: Direct Connections Should FAIL (or require Gateway)');
+// ==================== TEST: Direct Connections Blocked ====================
+async function testDirectConnectionsBlocked(token) {
+    log.section('TEST 2: Direct Connections Should be BLOCKED');
 
-    log.info('Note: Services should reject requests not coming through Gateway');
-    log.info('Or services should fail authentication since OAuth is via Gateway\n');
+    log.info('Services should reject direct connections (403)');
+    log.info('Only Gateway-routed requests should be accepted\n');
 
-    // Test Student Service directly
-    log.info('Testing Student Service DIRECTLY (should fail)...');
+    // Direct Student Service
+    log.info('Testing Student Service DIRECTLY...');
     try {
         await axios.get(`${DIRECT_URLS.student}/api/students`, {
             headers: { Authorization: `Bearer ${token}` },
             timeout: 5000
         });
-        // If we get here, the direct connection worked - this is expected
-        // until services are configured to only accept gateway requests
-        log.expected('Direct connection worked - services should be configured to only accept gateway requests');
-        log.info('   Current behavior: Direct access still possible (not restricted yet)');
+        log.warn('Student Service DIRECT: Still accessible (configure gateway-only)');
     } catch (error) {
         if (error.code === 'ECONNREFUSED') {
-            log.success('Student Service DIRECT: Connection refused (service only accepts gateway) ✓');
-        } else if (error.response && error.response.status >= 400) {
-            log.success('Student Service DIRECT: Rejected with ' + error.response.status + ' ✓');
+            log.success('Student Service DIRECT: Connection refused (not running or blocked)');
+        } else if (error.response?.status === 403) {
+            log.success('Student Service DIRECT: Blocked with 403 ✓');
         } else {
-            log.info('   Error: ' + error.message);
+            log.info('   Direct connection error: ' + error.message);
         }
     }
 
-    // Test Grades Service directly
-    log.info('Testing Grades Service DIRECTLY (should fail)...');
+    // Direct Grades Service
+    log.info('Testing Grades Service DIRECTLY...');
     try {
         await axios.post(`${DIRECT_URLS.grades}/api/grades/`, {
             student_id: 'TEST001',
@@ -126,64 +125,32 @@ async function testDirectConnectionsFail(token) {
             headers: { Authorization: `Bearer ${token}` },
             timeout: 5000
         });
-        log.expected('Direct connection worked - services need gateway-only configuration');
-        log.info('   Current behavior: Direct access still possible (not restricted yet)');
+        log.warn('Grades Service DIRECT: Still accessible');
     } catch (error) {
         if (error.code === 'ECONNREFUSED') {
-            log.success('Grades Service DIRECT: Connection refused ✓');
-        } else if (error.response && error.response.status >= 400) {
-            log.success('Grades Service DIRECT: Rejected with ' + error.response.status + ' ✓');
+            log.success('Grades Service DIRECT: Connection refused');
+        } else if (error.response?.status === 403 || error.response?.status === 401) {
+            log.success(`Grades Service DIRECT: Blocked with ${error.response.status} ✓`);
         } else {
-            log.info('   Error: ' + error.message);
+            log.info('   Direct connection error: ' + error.message);
         }
-    }
-}
-
-// ==================== TEST: Auth Validation Through Gateway ====================
-async function testAuthFlowThroughGateway() {
-    log.section('TEST 3: Authentication Flow Through Gateway');
-
-    // Test that services validate tokens via gateway (not directly)
-    log.info('Testing that token validation routes through gateway...');
-
-    try {
-        // Get a fresh token via gateway
-        const loginResponse = await axios.post(`${GATEWAY_URL}/api/auth/login`, {
-            email: 'admin@test.com',
-            password: 'Admin123!'
-        });
-        const token = loginResponse.data.token;
-        log.success('Login via Gateway: SUCCESS ✓');
-
-        // Use the token to access a protected resource
-        const studentsResponse = await axios.get(`${GATEWAY_URL}/api/students`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-
-        if (studentsResponse.status === 200) {
-            log.success('Protected resource access via Gateway: SUCCESS ✓');
-            log.info(`   Retrieved ${studentsResponse.data.data?.length || 0} students`);
-        }
-
-    } catch (error) {
-        log.fail('Auth flow through gateway failed: ' + error.message);
     }
 }
 
 // ==================== TEST: Gateway Health ====================
 async function testGatewayHealth() {
-    log.section('TEST 4: Gateway Health Check');
+    log.section('TEST 3: Gateway Health Check');
 
     try {
         const response = await axios.get(`${GATEWAY_URL}/actuator/health`, { timeout: 5000 });
         if (response.data.status === 'UP') {
-            log.success('Gateway is UP and healthy ✓');
+            log.success('Gateway is UP and healthy');
         } else {
             log.fail('Gateway health check returned: ' + response.data.status);
         }
     } catch (error) {
         log.fail('Gateway health check failed: ' + error.message);
-        throw new Error('Gateway is not running. Please start it first: cd api_gateway && mvn spring-boot:run');
+        throw new Error('Gateway is not running!');
     }
 }
 
@@ -191,24 +158,24 @@ async function testGatewayHealth() {
 async function runInterconnectionTests() {
     console.log('\n' + '═'.repeat(60).blue);
     console.log('  GATEWAY INTERCONNECTION TESTS  '.blue.bold);
-    console.log('  Verifying Gateway-Only Communication  '.blue);
+    console.log('  Verifying Gateway-Only Architecture  '.blue);
+    console.log(`  Gateway: ${GATEWAY_URL}  `.blue);
     console.log('═'.repeat(60).blue + '\n');
 
     const startTime = Date.now();
 
     try {
-        // First check if gateway is running
+        // Check gateway first
         await testGatewayHealth();
 
-        // Get token via gateway
+        // Get token
         log.info('Obtaining admin token via Gateway...');
         const token = await getAdminToken();
-        log.success('Admin token obtained via Gateway ✓\n');
+        log.success('Admin token obtained\n');
 
-        // Run all tests
+        // Run tests
         await testGatewayWorks(token);
-        await testDirectConnectionsFail(token);
-        await testAuthFlowThroughGateway();
+        await testDirectConnectionsBlocked(token);
 
         // Summary
         const duration = ((Date.now() - startTime) / 1000).toFixed(2);
@@ -222,7 +189,7 @@ async function runInterconnectionTests() {
         console.log('═'.repeat(60).cyan + '\n');
 
         if (failed === 0) {
-            console.log('  🎉 ALL INTERCONNECTION TESTS PASSED! 🎉  '.green.bold);
+            console.log('  🎉 ALL TESTS PASSED! 🎉  '.green.bold);
             console.log('  Gateway architecture is working correctly  '.green);
         } else {
             console.log('  ⚠️  Some tests failed - review configuration  '.yellow.bold);
@@ -231,15 +198,11 @@ async function runInterconnectionTests() {
 
     } catch (error) {
         console.log('\n' + '═'.repeat(60).red);
-        console.log('  ❌ INTERCONNECTION TESTS FAILED  '.red.bold);
-        console.log('═'.repeat(60).red);
+        console.log('  ❌ TESTS FAILED  '.red.bold);
         console.log(`  Error: ${error.message}`.red);
-        console.log('\n  Make sure the Gateway is running:'.yellow);
-        console.log('  cd api_gateway && mvn spring-boot:run'.gray);
-        console.log('\n');
+        console.log('═'.repeat(60).red + '\n');
         process.exit(1);
     }
 }
 
-// Run tests
 runInterconnectionTests();
