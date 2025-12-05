@@ -1,8 +1,40 @@
 const axios = require('axios');
 
+// API Gateway URL - all inter-service communication goes through the gateway
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:8080';
+
+// Gateway secret - must match the secret configured in the API Gateway
+const GATEWAY_SECRET = process.env.GATEWAY_SECRET || 'university-gateway-2024';
+
+/**
+ * Middleware to verify requests come through the API Gateway
+ * Checks for X-Gateway-Request and X-Gateway-Secret headers
+ * Note: Express lowercases all header names automatically
+ */
+const verifyGatewayRequest = (req, res, next) => {
+    // Express converts headers to lowercase
+    const gatewayRequest = req.headers['x-gateway-request'];
+    const gatewaySecret = req.headers['x-gateway-secret'];
+
+    // Debug logging
+    console.log('Gateway headers received:', {
+        'x-gateway-request': gatewayRequest,
+        'x-gateway-secret': gatewaySecret ? '[PRESENT]' : '[MISSING]'
+    });
+
+    if (gatewayRequest !== 'true' || gatewaySecret !== GATEWAY_SECRET) {
+        return res.status(403).json({
+            success: false,
+            message: 'Direct access not allowed. Use the API Gateway.'
+        });
+    }
+
+    next();
+};
+
 /**
  * Middleware to verify JWT token
- * Extracts token from Authorization header and verifies it via OAuth service
+ * Calls OAuth service via the API Gateway for token validation
  */
 const authenticateToken = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
@@ -16,8 +48,8 @@ const authenticateToken = async (req, res, next) => {
     }
 
     try {
-        // Call OAuth service to validate token
-        const response = await axios.get(`http://localhost:8081/api/auth/validate?token=${token}`);
+        // Call OAuth service via Gateway to validate token
+        const response = await axios.get(`${GATEWAY_URL}/api/auth/validate?token=${token}`);
 
         // If successful, the response data contains the user info
         req.user = response.data;
@@ -46,4 +78,4 @@ const authenticateToken = async (req, res, next) => {
     }
 };
 
-module.exports = authenticateToken;
+module.exports = { authenticateToken, verifyGatewayRequest };

@@ -1,18 +1,19 @@
 import httpx
 from fastapi import HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import os
 
 security = HTTPBearer()
 
-# OAuth service URL
-OAUTH_SERVICE_URL = "http://localhost:8081"
+# API Gateway URL - all inter-service communication goes through the gateway
+GATEWAY_URL = os.getenv("GATEWAY_URL", "http://localhost:8080")
 
 async def validate_token_with_oauth(token: str) -> dict:
-    """Validate token by calling the OAuth service"""
+    """Validate token by calling the OAuth service via API Gateway"""
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"{OAUTH_SERVICE_URL}/api/auth/validate",
+                f"{GATEWAY_URL}/api/auth/validate",
                 params={"token": token},
                 timeout=10.0
             )

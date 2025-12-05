@@ -1,0 +1,102 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      # Global CORS configuration - applied only at gateway level
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - PATCH
+              - OPTIONS
+            allowedHeaders: "*"
+            exposedHeaders:
+              - Authorization
+            allowCredentials: false
+            maxAge: 3600
+      
+      # Default filters applied to all routes
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
+        - AddRequestHeader=X-Gateway-Request, true
+        - AddRequestHeader=X-Gateway-Secret, university-gateway-2024
+      
+      routes:
+        # OAuth Service - Authentication
+        - id: oauth-service
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - RewritePath=/api/auth/(?<segment>.*), /api/auth/${segment}
+
+        # Student Service - Student Management
+        - id: student-service
+          uri: http://localhost:3001
+          predicates:
+            - Path=/api/students/**
+          filters:
+            - RewritePath=/api/students/(?<segment>.*), /api/students/${segment}
+
+        # Course Service - SOAP Service (proxy)
+        - id: course-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/courses/**
+          filters:
+            - RewritePath=/api/courses/(?<segment>.*), /courses/${segment}
+        
+        # Course WSDL
+        - id: course-wsdl
+          uri: http://localhost:8082
+          predicates:
+            - Path=/courses/**
+
+        # Grades Service - FastAPI
+        - id: grades-service
+          uri: http://localhost:8000
+          predicates:
+            - Path=/api/grades/**
+          filters:
+            - RewritePath=/api/grades/(?<segment>.*), /api/grades/${segment}
+
+        # Facturation Service - SOAP Service (proxy)
+        - id: facturation-service
+          uri: http://localhost:8083
+          predicates:
+            - Path=/api/facturation/**
+          filters:
+            - RewritePath=/api/facturation/(?<segment>.*), /${segment}
+        
+        # Facturation WSDL
+        - id: facturation-wsdl
+          uri: http://localhost:8083
+          predicates:
+            - Path=/FacturationService.asmx/**
+
+# Actuator endpoints for monitoring
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+  endpoint:
+    gateway:
+      enabled: true
+    health:
+      show-details: always
+
+# Logging
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    reactor.netty: INFO

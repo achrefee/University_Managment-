@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const studentController = require('../controllers/studentController');
-const authenticateToken = require('../middleware/auth');
+const { authenticateToken, verifyGatewayRequest } = require('../middleware/auth');
 const requireAdmin = require('../middleware/requireAdmin');
 
-// All routes require authentication and admin role
+// All routes require gateway verification, authentication and admin role
+router.use(verifyGatewayRequest);  // Block direct connections
 router.use(authenticateToken);
 router.use(requireAdmin);
 

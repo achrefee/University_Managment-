@@ -6,6 +6,15 @@ from app.auth import require_professor, require_student_or_admin, get_current_us
 
 router = APIRouter(prefix="/api/grades", tags=["grades"])
 
+# Health check endpoint (no authentication required)
+@router.get("/health")
+async def health_check():
+    """Health check endpoint for the grades service"""
+    return {
+        "status": "healthy",
+        "service": "grades-service"
+    }
+
 # View operations (Students, Admins, Professors)
 
 @router.get("/", response_model=List[GradeResponse])

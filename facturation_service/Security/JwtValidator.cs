@@ -8,7 +8,8 @@ public class JwtValidator
 {
     private readonly IConfiguration _configuration;
     private readonly HttpClient _httpClient;
-    private static readonly string OAUTH_SERVICE_URL = "http://localhost:8081";
+    // API Gateway URL - all inter-service communication goes through the gateway
+    private static readonly string GATEWAY_URL = Environment.GetEnvironmentVariable("GATEWAY_URL") ?? "http://localhost:8080";
 
     public JwtValidator(IConfiguration configuration)
     {
@@ -22,7 +23,8 @@ public class JwtValidator
         {
             // URL encode the token to handle special characters
             var encodedToken = Uri.EscapeDataString(token);
-            var response = await _httpClient.GetAsync($"{OAUTH_SERVICE_URL}/api/auth/validate?token={encodedToken}");
+            // Route through API Gateway
+            var response = await _httpClient.GetAsync($"{GATEWAY_URL}/api/auth/validate?token={encodedToken}");
             
             if (response.IsSuccessStatusCode)
             {

@@ -5,6 +5,8 @@
     "main": "test-all.js",
     "scripts": {
         "test": "node test-all.js",
+        "test:gateway": "node test-gateway.js",
+        "test:interconnection": "node test-interconnection.js",
         "test:oauth": "node tests/oauth.test.js",
         "test:student": "node tests/student.test.js",
         "test:course": "node tests/course.test.js",

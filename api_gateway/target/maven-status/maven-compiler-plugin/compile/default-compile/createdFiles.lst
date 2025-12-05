@@ -1,0 +1,3 @@
+com\university\gateway\ApiGatewayApplication.class
+com\university\gateway\config\CorsConfig.class
+com\university\gateway\config\LoggingFilter.class

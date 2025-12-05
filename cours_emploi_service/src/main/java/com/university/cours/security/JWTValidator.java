@@ -10,7 +10,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class JWTValidator {
-    private static final String OAUTH_SERVICE_URL = "http://localhost:8081";
+    // API Gateway URL - all inter-service communication goes through the gateway
+    private static final String GATEWAY_URL = System.getenv("GATEWAY_URL") != null
+            ? System.getenv("GATEWAY_URL")
+            : "http://localhost:8080";
 
     public static class UserInfo {
         public String token;
@@ -24,7 +27,7 @@ public class JWTValidator {
     public static UserInfo validateToken(String token) {
         try {
             String encodedToken = URLEncoder.encode(token, StandardCharsets.UTF_8.toString());
-            URL url = new URL(OAUTH_SERVICE_URL + "/api/auth/validate?token=" + encodedToken);
+            URL url = new URL(GATEWAY_URL + "/api/auth/validate?token=" + encodedToken);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.setConnectTimeout(10000);
